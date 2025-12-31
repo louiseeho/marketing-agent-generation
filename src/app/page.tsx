@@ -1,13 +1,21 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
-import { Settings, Send, Bot, Loader2 } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Slider } from "@/components/ui/slider"
+import { Label } from "@/components/ui/label"
+import { Settings, Send, Bot, Loader2, Plus, X } from "lucide-react"
 
 export default function YouTubeAgentChat() {
+  const [isManualMode, setIsManualMode] = useState(false)
   const [youtubeURL, setYoutubeURL] = useState("")
+  const [manualVideos, setManualVideos] = useState([
+    { url: "", weight: 50 },
+    { url: "", weight: 50 },
+  ])
   const [persona, setPersona] = useState(null)
   const [history, setHistory] = useState([])
   const [userInput, setUserInput] = useState("")
@@ -19,27 +27,130 @@ export default function YouTubeAgentChat() {
     return match ? match[1] : null
   }
 
+  // Normalize weights to sum to 100%
+  const normalizeWeights = (videos) => {
+    const total = videos.reduce((sum, v) => sum + (v.weight || 0), 0)
+    if (total === 0) return videos
+    return videos.map((v) => ({
+      ...v,
+      weight: Math.round((v.weight / total) * 100),
+    }))
+  }
+
+  // Update weight for a specific video
+  const updateWeight = (index, newWeight) => {
+    const updated = [...manualVideos]
+    updated[index].weight = Math.max(0, Math.min(100, newWeight))
+    
+    // Normalize all weights to sum to 100% if total is not 100
+    const total = updated.reduce((sum, v) => sum + v.weight, 0)
+    if (total !== 100 && total > 0) {
+      // Normalize proportionally
+      const normalized = normalizeWeights(updated)
+      setManualVideos(normalized)
+    } else {
+      setManualVideos(updated)
+    }
+  }
+
+  // Add a new video
+  const addVideo = () => {
+    const currentTotal = manualVideos.reduce((sum, v) => sum + v.weight, 0)
+    const newWeight = currentTotal > 0 ? Math.floor(100 / (manualVideos.length + 1)) : 100 / (manualVideos.length + 1)
+    const updated = manualVideos.map((v) => ({
+      ...v,
+      weight: Math.floor((v.weight / currentTotal) * (100 - newWeight)) || newWeight,
+    }))
+    updated.push({ url: "", weight: newWeight })
+    setManualVideos(normalizeWeights(updated))
+  }
+
+  // Remove a video
+  const removeVideo = (index) => {
+    if (manualVideos.length <= 2) return // Keep at least 2 videos
+    const removed = manualVideos.filter((_, i) => i !== index)
+    setManualVideos(normalizeWeights(removed))
+  }
+
+  // Ensure weights sum to 100% when videos are added/removed
+  useEffect(() => {
+    const total = manualVideos.reduce((sum, v) => sum + v.weight, 0)
+    if (total !== 100 && total > 0 && manualVideos.length > 0) {
+      setManualVideos(normalizeWeights(manualVideos))
+    }
+  }, [manualVideos.length])
+
   const handleGenerateAgent = async (e) => {
     e.preventDefault()
-    const videoId = extractVideoId(youtubeURL)
-    if (!videoId) return alert("Invalid YouTube URL")
 
-    setLoading(true)
-    try {
-      const res = await fetch("/generate-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId }),
-      })
-      const data = await res.json()
-      console.log("Generated agent:", data)
-      setPersona(data.agent)
-      setHistory([])
-    } catch (err) {
-      alert("Error generating agent")
-      console.error(err)
-    } finally {
-      setLoading(false)
+    if (isManualMode) {
+      // Manual mode: validate all videos and weights
+      const validVideos = manualVideos.filter((v) => extractVideoId(v.url))
+      if (validVideos.length === 0) {
+        return alert("Please enter at least one valid YouTube URL")
+      }
+      
+      // Normalize weights for valid videos only
+      const totalWeight = validVideos.reduce((sum, v) => sum + v.weight, 0)
+      if (totalWeight === 0) {
+        return alert("Please set weights for at least one video")
+      }
+      
+      // Normalize weights to sum to 100%
+      const normalizedVideos = normalizeWeights(validVideos)
+
+      setLoading(true)
+      try {
+        const videos = normalizedVideos.map((v) => ({
+          videoId: extractVideoId(v.url),
+          weight: v.weight,
+        }))
+        
+        const res = await fetch("/generate-agent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "manual", videos }),
+        })
+        const data = await res.json()
+        if (data.error) {
+          alert(data.error)
+          return
+        }
+        console.log("Generated agent:", data)
+        setPersona(data.agent)
+        setHistory([])
+      } catch (err) {
+        alert("Error generating agent")
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    } else {
+      // Automatic mode
+      const videoId = extractVideoId(youtubeURL)
+      if (!videoId) return alert("Invalid YouTube URL")
+
+      setLoading(true)
+      try {
+        const res = await fetch("/generate-agent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "automatic", videoId }),
+        })
+        const data = await res.json()
+        if (data.error) {
+          alert(data.error)
+          return
+        }
+        console.log("Generated agent:", data)
+        setPersona(data.agent)
+        setHistory([])
+      } catch (err) {
+        alert("Error generating agent")
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
@@ -89,23 +200,123 @@ export default function YouTubeAgentChat() {
       {/* Main Content */}
       <div className="flex w-full pt-16">
         {/* Left Sidebar */}
-        <div className="w-80 bg-muted/30 border-r border-border p-6">
+        <div className="w-80 bg-muted/30 border-r border-border p-6 overflow-y-auto">
           <Card className="p-6">
             <h2 className="text-lg font-semibold mb-4">Generate AI Agent</h2>
-            <form onSubmit={handleGenerateAgent} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-2 block">YouTube URL</label>
-                <Input
-                  placeholder="https://youtube.com/watch?v=..."
-                  value={youtubeURL}
-                  onChange={(e) => setYoutubeURL(e.target.value)}
-                  className="bg-background"
-                />
+            
+            {/* Mode Toggle */}
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
+              <div className="flex flex-col">
+                <Label className="text-sm font-medium text-muted-foreground mb-1">
+                  {isManualMode ? "Manual Mode" : "Automatic Mode"}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {isManualMode
+                    ? "Enter video URLs and set weights manually"
+                    : "Automatically find related videos"}
+                </p>
               </div>
+              <Switch checked={isManualMode} onCheckedChange={setIsManualMode} />
+            </div>
+
+            <form onSubmit={handleGenerateAgent} className="space-y-4">
+              {isManualMode ? (
+                <>
+                  {/* Manual Mode */}
+                  <div className="space-y-4">
+                    {manualVideos.map((video, index) => (
+                      <div key={index} className="space-y-3 p-3 border rounded-lg bg-card">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium text-muted-foreground">
+                            Video {index + 1}
+                          </Label>
+                          {manualVideos.length > 2 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => removeVideo(index)}
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                        <Input
+                          placeholder="https://youtube.com/watch?v=..."
+                          value={video.url}
+                          onChange={(e) => {
+                            const updated = [...manualVideos]
+                            updated[index].url = e.target.value
+                            setManualVideos(updated)
+                          }}
+                          className="bg-background"
+                        />
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">Weight: {video.weight}%</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={video.weight}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value) || 0
+                                updateWeight(index, value)
+                              }}
+                              className="w-16 h-7 text-xs bg-background"
+                            />
+                          </div>
+                          <Slider
+                            min={0}
+                            max={100}
+                            value={video.weight}
+                            onValueChange={(value) => updateWeight(index, value)}
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addVideo}
+                      className="w-full"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Video
+                    </Button>
+                    <div className="text-xs text-muted-foreground text-center pt-2">
+                      Total: {manualVideos.reduce((sum, v) => sum + v.weight, 0)}%
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Automatic Mode */}
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground mb-2 block">
+                      YouTube URL
+                    </Label>
+                    <Input
+                      placeholder="https://youtube.com/watch?v=..."
+                      value={youtubeURL}
+                      onChange={(e) => setYoutubeURL(e.target.value)}
+                      className="bg-background"
+                    />
+                  </div>
+                </>
+              )}
+
               <Button
                 type="submit"
                 className="w-full bg-red-600 hover:bg-red-700 text-white"
-                disabled={!youtubeURL.trim() || loading}
+                disabled={
+                  loading ||
+                  (isManualMode
+                    ? manualVideos.every((v) => !v.url.trim())
+                    : !youtubeURL.trim())
+                }
               >
                 {loading ? (
                   <>

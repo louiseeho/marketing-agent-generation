@@ -6,12 +6,37 @@ export const runtime = "nodejs"; // Gemini SDK needs Node runtime
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
+async function fetchComments(videoId: string, apiKey: string): Promise<string[]> {
+  const res = await axios.get("https://www.googleapis.com/youtube/v3/commentThreads", {
+    params: {
+      part: "snippet",
+      videoId,
+      maxResults: 100,
+      order: "relevance",
+      textFormat: "plainText",
+      key: apiKey,
+    },
+  });
+
+  return (res.data.items || [])
+    .map((i: any) => i?.snippet?.topLevelComment?.snippet?.textOriginal ?? "")
+    .filter(Boolean);
+}
+
+function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 export async function POST(req: Request) {
   try {
-    const { videoId } = await req.json();
-    if (!videoId) {
-      return NextResponse.json({ error: "Missing videoId" }, { status: 400 });
-    }
+    const body = await req.json();
+    const { mode = "automatic", videoId, videos } = body;
+
     if (!process.env.YOUTUBE_API_KEY) {
       return NextResponse.json({ error: "Missing YOUTUBE_API_KEY" }, { status: 500 });
     }
@@ -19,21 +44,134 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing GEMINI_API_KEY" }, { status: 500 });
     }
 
-    // --- Step 1: Fetch YouTube comments (limit 100)
-    const yt = await axios.get("https://www.googleapis.com/youtube/v3/commentThreads", {
-      params: {
-        part: "snippet",
-        videoId,
-        maxResults: 100, // API max is 100
-        key: process.env.YOUTUBE_API_KEY,
-        order: "relevance",
-        textFormat: "plainText",
-      },
-    });
+    let finalSample: string[] = [];
 
-    const comments: string[] = (yt.data.items || []).map(
-      (item: any) => item?.snippet?.topLevelComment?.snippet?.textOriginal ?? ""
-    ).filter(Boolean);
+    if (mode === "manual" && videos && Array.isArray(videos)) {
+      // Manual mode: use provided videos with weights
+      console.log("Manual mode: processing videos with weights", videos);
+
+      const allVideoComments: Array<{ videoId: string; comments: string[]; weight: number }> = [];
+
+      // Fetch comments from all videos
+      for (const video of videos) {
+        if (!video.videoId || !video.weight) continue;
+        try {
+          const comments = await fetchComments(video.videoId, process.env.YOUTUBE_API_KEY);
+          allVideoComments.push({
+            videoId: video.videoId,
+            comments: Array.from(new Set(comments)), // Remove duplicates
+            weight: video.weight,
+          });
+        } catch (err: any) {
+          console.warn(`Failed to fetch comments for video ${video.videoId}:`, err.message);
+        }
+      }
+
+      if (allVideoComments.length === 0) {
+        return NextResponse.json({ error: "No valid videos provided" }, { status: 400 });
+      }
+
+      // Weight comments based on provided weights
+      const weightedComments: string[] = [];
+      for (const { comments, weight } of allVideoComments) {
+        const numComments = Math.round((weight / 100) * 100); // Scale to 100 total comments
+        const sampled = shuffleArray(comments).slice(0, numComments);
+        weightedComments.push(...sampled);
+      }
+
+      finalSample = shuffleArray(weightedComments).slice(0, 100);
+    } else {
+      // Automatic mode: original logic
+      if (!videoId) {
+        return NextResponse.json({ error: "Missing videoId" }, { status: 400 });
+      }
+
+      // --- Step 1: Fetch YouTube comments (limit 100)
+      const allComments: string[] = [];
+
+      // Step 1a: Comments from main video
+      const mainComments = await fetchComments(videoId, process.env.YOUTUBE_API_KEY);
+      allComments.push(...mainComments);
+
+      console.log("Fetching related videos for videoId:", videoId, typeof videoId);
+
+      // Step 1a.5: Fetch video title
+      const videoMeta = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
+        params: {
+          part: "snippet",
+          id: videoId,
+          key: process.env.YOUTUBE_API_KEY,
+        },
+      });
+
+      const videoTitle = videoMeta.data?.items?.[0]?.snippet?.title || "";
+
+      // Step 1b: Generate keyword search query using Gemini
+      const keywordModel = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
+      const keywordPrompt = `
+    You are a YouTube recommendation strategist. Based on the following video title and comments, extract 5 to 7 concise keywords or short phrases that would help surface *similar videos* on YouTube.
+
+    These videos could be related by **topic, tone, genre, audience, or creator style**. Your goal is to capture the *core themes, community interests, and format* that define the viewing experience — not just literal details from the video.
+
+    Think about what types of content YouTube would recommend to viewers who liked this, even if those videos aren't exactly on the same topic.
+
+    Title: "${videoTitle}"
+
+    Comments:
+    ${allComments.slice(0, 20).map((c, i) => `${i + 1}. ${c}`).join("\n")}
+
+    Return a JSON array of strings. Do NOT include any explanation.
+    `.trim();
+
+      const keywordResult = await keywordModel.generateContent(keywordPrompt);
+      const keywordsText = keywordResult.response.text().replace(/```json|```/g, "").trim();
+      let keywords: string[] = [];
+
+      try {
+        keywords = JSON.parse(keywordsText);
+      } catch {
+        return NextResponse.json({ error: "Gemini keyword response was not JSON", raw: keywordsText }, { status: 502 });
+      }
+
+      console.log("Extracted keywords for video search:", keywords);
+
+      // Step 1c: Use keywords to search for related videos
+      const keywordQuery = keywords.join(" ");
+
+      const searchResults = await axios.get("https://www.googleapis.com/youtube/v3/search", {
+        params: {
+          part: "snippet",
+          q: keywordQuery,
+          type: "video",
+          maxResults: 5,
+          key: process.env.YOUTUBE_API_KEY,
+        },
+      });
+
+      const relatedVideoIds = searchResults.data.items.map((item: any) => item.id.videoId);
+
+      console.log("Related video IDs from keyword query:", relatedVideoIds);
+
+      // Step 1d: Fetch comments from keyword-based related videos
+      const relatedComments: string[] = [];
+      for (const relId of relatedVideoIds) {
+        try {
+          const comments = await fetchComments(relId, process.env.YOUTUBE_API_KEY);
+          relatedComments.push(...comments);
+          allComments.push(...comments);
+        } catch (err: any) {
+          console.warn(`Failed to fetch comments for related video ${relId}:`, err.message);
+        }
+      }
+
+      const uniqueMain = Array.from(new Set(mainComments));
+      const uniqueRelated = Array.from(new Set(relatedComments));
+      const mainSample = shuffleArray(uniqueMain).slice(0, 100); // prioritize main
+      const relatedSample = shuffleArray(uniqueRelated).slice(0, 100); // some related
+      const combinedSample = [...mainSample, ...relatedSample];
+      finalSample = shuffleArray(combinedSample).slice(0, 100); // final mix
+    }
 
     // --- Step 2: Call Gemini to synthesize a persona
     const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
@@ -42,7 +180,7 @@ export async function POST(req: Request) {
       You are a marketing assistant. Based on the following YouTube comments, generate a synthetic user persona that represents the typical commenter. Include estimated age group, tone, interests, and a sample comment.
 
       Comments:
-      ${comments.slice(0, 20).map((c, i) => `${i + 1}. ${c}`).join("\n")}
+      ${finalSample.slice(0, 30).map((c, i) => `${i + 1}. ${c}`).join("\n")}
 
       Respond in STRICT JSON with fields:
       {

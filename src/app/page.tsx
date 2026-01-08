@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -21,6 +21,15 @@ export default function YouTubeAgentChat() {
   const [userInput, setUserInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
+
+  // Listen for clear history event from settings page
+  useEffect(() => {
+    const handleClearHistory = () => {
+      setHistory([])
+    }
+    window.addEventListener("clearChatHistory", handleClearHistory)
+    return () => window.removeEventListener("clearChatHistory", handleClearHistory)
+  }, [])
 
   // Sidebar management hook
   const {
@@ -137,14 +146,26 @@ export default function YouTubeAgentChat() {
     setGenerating(true)
 
     try {
-      // Get temperature from localStorage, default to 0.7
+      // Get settings from localStorage
       const savedTemperature = localStorage.getItem("chatTemperature")
       const temperature = savedTemperature ? parseFloat(savedTemperature) : 0.7
+      
+      const savedResponseStyle = localStorage.getItem("responseStyle") || "casual"
+      const savedHistoryLimit = localStorage.getItem("conversationHistory")
+      const historyLimit = savedHistoryLimit ? parseInt(savedHistoryLimit) : 10
+      
+      // Limit history to the specified number of messages
+      const limitedHistory = newHistory.slice(-historyLimit)
       
       const res = await fetch("/chat-with-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ persona, history: newHistory, temperature }),
+        body: JSON.stringify({ 
+          persona, 
+          history: limitedHistory, 
+          temperature,
+          responseStyle: savedResponseStyle,
+        }),
       })
       const data = await res.json()
       newHistory[newHistory.length - 1][1] = data.reply

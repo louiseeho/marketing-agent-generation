@@ -10,8 +10,13 @@ type Persona = { name: string; age: string | number; tone: string; interests: st
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json() as { persona: Persona; history: Turn[]; temperature?: number };
-    const { persona, history, temperature = 0.7 } = body || {};
+    const body = await req.json() as { 
+      persona: Persona; 
+      history: Turn[]; 
+      temperature?: number;
+      responseStyle?: string;
+    };
+    const { persona, history, temperature = 0.7, responseStyle = "casual" } = body || {};
     if (!persona || !history?.length) {
       return NextResponse.json({ error: "Missing persona or history" }, { status: 400 });
     }
@@ -33,7 +38,25 @@ export async function POST(req: Request) {
 
     const lastUserMsg = history[history.length - 1]?.[0] ?? "";
 
-    const systemPrompt = `You're a persona named ${persona.name}, a ${persona.age}-year-old who is ${persona.tone}. You're interested in ${persona.interests.join(", ")}. Speak informally and reply like you would in YouTube comments. Keep replies concise but specific.`;
+    // Build style instruction based on responseStyle setting
+    let styleInstruction = "";
+    switch (responseStyle) {
+      case "formal":
+        styleInstruction = "Use a formal, professional tone. Be polite and respectful.";
+        break;
+      case "emoji-heavy":
+        styleInstruction = "Use lots of emojis and expressive language. Be enthusiastic and animated.";
+        break;
+      case "concise":
+        styleInstruction = "Keep responses very short and to-the-point. Be brief and direct.";
+        break;
+      case "casual":
+      default:
+        styleInstruction = "Speak informally and reply like you would in YouTube comments. Keep replies concise but specific.";
+        break;
+    }
+
+    const systemPrompt = `You're a persona named ${persona.name}, a ${persona.age}-year-old who is ${persona.tone}. You're interested in ${persona.interests.join(", ")}. ${styleInstruction}`;
 
     const chat = await model.startChat({
       history: geminiHistory,

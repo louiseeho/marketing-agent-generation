@@ -7,12 +7,14 @@ import { Card } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Trash2 } from "lucide-react"
 
 export default function SettingsPage() {
   const [temperature, setTemperature] = useState(0.7)
   const [commentCount, setCommentCount] = useState(100)
   const [commentSort, setCommentSort] = useState("relevance")
+  const [responseStyle, setResponseStyle] = useState("casual")
+  const [conversationHistory, setConversationHistory] = useState(10)
 
   // Load temperature from localStorage on mount, default to 0.7
   useEffect(() => {
@@ -48,6 +50,25 @@ export default function SettingsPage() {
     }
   }, [])
 
+  // Load response style from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("responseStyle")
+    if (saved !== null) {
+      setResponseStyle(saved)
+    }
+  }, [])
+
+  // Load conversation history from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("conversationHistory")
+    if (saved !== null) {
+      const parsed = parseInt(saved)
+      if (!isNaN(parsed)) {
+        setConversationHistory(parsed)
+      }
+    }
+  }, [])
+
   // Save temperature to localStorage when it changes
   const updateTemperature = (value: number) => {
     const clampedValue = Math.max(0, Math.min(2, value))
@@ -68,6 +89,28 @@ export default function SettingsPage() {
     localStorage.setItem("commentSort", value)
   }
 
+  // Save response style to localStorage when it changes
+  const updateResponseStyle = (value: string) => {
+    setResponseStyle(value)
+    localStorage.setItem("responseStyle", value)
+  }
+
+  // Save conversation history to localStorage when it changes
+  const updateConversationHistory = (value: number) => {
+    const clampedValue = Math.max(1, Math.min(50, value))
+    setConversationHistory(clampedValue)
+    localStorage.setItem("conversationHistory", clampedValue.toString())
+  }
+
+  // Clear chat history
+  const handleClearHistory = () => {
+    if (confirm("Are you sure you want to clear the chat history? This action cannot be undone.")) {
+      // Dispatch a custom event that the main page can listen to
+      window.dispatchEvent(new CustomEvent("clearChatHistory"))
+      alert("Chat history will be cleared when you return to the main page.")
+    }
+  }
+
   return (
     <div className="flex h-screen bg-background">
       {/* Header */}
@@ -83,9 +126,10 @@ export default function SettingsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex w-full pt-16">
-        <div className="flex-1 flex flex-col items-center justify-center p-6">
-          <Card className="p-8 max-w-2xl w-full">
+      <div className="flex w-full pt-[4.5rem] pb-8 overflow-y-auto">
+        <div className="flex-1 flex flex-col items-start p-6 min-h-0 w-full">
+          <div className="w-full max-w-2xl mx-auto">
+            <Card className="p-8 w-full mb-6">
             <div className="flex items-center gap-4 mb-6">
               <Link href="/">
                 <Button
@@ -235,8 +279,154 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Chat Experience Setting */}
+              <div className="space-y-4 pt-6 border-t border-border">
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground mb-2 block">
+                    Chat Experience
+                  </Label>
+                </div>
+
+                {/* Response Style */}
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-2 block">
+                      Response Style
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Choose how the agent responds to your messages (default: casual)
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-md hover:bg-muted/50 transition-colors">
+                      <input
+                        type="radio"
+                        name="responseStyle"
+                        value="casual"
+                        checked={responseStyle === "casual"}
+                        onChange={(e) => updateResponseStyle(e.target.value)}
+                        className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">Casual</div>
+                        <div className="text-xs text-muted-foreground">
+                          Informal, friendly, like talking to a friend
+                        </div>
+                      </div>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-md hover:bg-muted/50 transition-colors">
+                      <input
+                        type="radio"
+                        name="responseStyle"
+                        value="formal"
+                        checked={responseStyle === "formal"}
+                        onChange={(e) => updateResponseStyle(e.target.value)}
+                        className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">Formal</div>
+                        <div className="text-xs text-muted-foreground">
+                          Professional and polite tone
+                        </div>
+                      </div>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-md hover:bg-muted/50 transition-colors">
+                      <input
+                        type="radio"
+                        name="responseStyle"
+                        value="emoji-heavy"
+                        checked={responseStyle === "emoji-heavy"}
+                        onChange={(e) => updateResponseStyle(e.target.value)}
+                        className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">Emoji-Heavy</div>
+                        <div className="text-xs text-muted-foreground">
+                          Uses lots of emojis and expressive language
+                        </div>
+                      </div>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-md hover:bg-muted/50 transition-colors">
+                      <input
+                        type="radio"
+                        name="responseStyle"
+                        value="concise"
+                        checked={responseStyle === "concise"}
+                        onChange={(e) => updateResponseStyle(e.target.value)}
+                        className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">Concise</div>
+                        <div className="text-xs text-muted-foreground">
+                          Short, to-the-point responses
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Conversation History */}
+                <div className="space-y-3 pt-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-2 block">
+                      Conversation History
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Number of previous messages the agent remembers (default: 10, max: 50)
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <Label className="text-xs text-muted-foreground">
+                      Messages: {conversationHistory}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="50"
+                      step="1"
+                      value={conversationHistory}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 10
+                        updateConversationHistory(value)
+                      }}
+                      className="w-20 h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <Slider
+                    min={1}
+                    max={50}
+                    step={1}
+                    value={conversationHistory}
+                    onValueChange={(value) => updateConversationHistory(value)}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Clear History */}
+                <div className="pt-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-2 block">
+                      Clear Chat History
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Permanently delete all chat history. This action cannot be undone.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleClearHistory}
+                    className="w-full text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Clear Chat History
+                  </Button>
+                </div>
+              </div>
             </div>
           </Card>
+          </div>
         </div>
       </div>
     </div>

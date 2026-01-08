@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
-import { Settings, Send, Bot, Loader2, Plus, X, ChevronLeft, ChevronRight, GripVertical } from "lucide-react"
+import { Settings, Send, Bot, Loader2, Plus, X, ChevronLeft, ChevronRight, GripVertical, AlertTriangle } from "lucide-react"
 
 export default function YouTubeAgentChat() {
   const [isManualMode, setIsManualMode] = useState(false)
@@ -15,8 +15,7 @@ export default function YouTubeAgentChat() {
   const [isResizing, setIsResizing] = useState(false)
   const [youtubeURL, setYoutubeURL] = useState("")
   const [manualVideos, setManualVideos] = useState([
-    { url: "", weight: 50 },
-    { url: "", weight: 50 },
+    { url: "", weight: 100 },
   ])
   const [persona, setPersona] = useState(null)
   const [history, setHistory] = useState([])
@@ -39,21 +38,16 @@ export default function YouTubeAgentChat() {
     }))
   }
 
-  // Update weight for a specific video
+  // Update weight for a specific video (no auto-normalization)
   const updateWeight = (index, newWeight) => {
     const updated = [...manualVideos]
     updated[index].weight = Math.max(0, Math.min(100, newWeight))
-    
-    // Normalize all weights to sum to 100% if total is not 100
-    const total = updated.reduce((sum, v) => sum + v.weight, 0)
-    if (total !== 100 && total > 0) {
-      // Normalize proportionally
-      const normalized = normalizeWeights(updated)
-      setManualVideos(normalized)
-    } else {
-      setManualVideos(updated)
-    }
+    setManualVideos(updated)
   }
+
+  // Calculate total weight percentage
+  const totalWeight = manualVideos.reduce((sum, v) => sum + v.weight, 0)
+  const isTotalValid = totalWeight === 100
 
   // Add a new video
   const addVideo = () => {
@@ -69,7 +63,7 @@ export default function YouTubeAgentChat() {
 
   // Remove a video
   const removeVideo = (index) => {
-    if (manualVideos.length <= 2) return // Keep at least 2 videos
+    if (manualVideos.length <= 1) return // Keep at least 1 video
     const removed = manualVideos.filter((_, i) => i !== index)
     setManualVideos(normalizeWeights(removed))
   }
@@ -241,15 +235,49 @@ export default function YouTubeAgentChat() {
 
       {/* Main Content */}
       <div className="flex w-full pt-16">
-        {/* Left Sidebar */}
-        {!isSidebarCollapsed && (
-          <div
-            className="bg-muted/30 border-r border-border overflow-y-auto transition-all duration-200 relative"
-            style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
+        {/* Collapsed Sidebar Rail */}
+        <div
+          className={`w-12 bg-muted/30 border-r border-border flex flex-col items-center pt-4 h-[calc(100vh-4rem)] transition-all duration-300 ease-in-out ${
+            isSidebarCollapsed
+              ? "translate-x-0 opacity-100"
+            : "-translate-x-full opacity-0 pointer-events-none"
+          }`}
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSidebarCollapsed(false)}
+            className="hover:bg-red-100 dark:hover:bg-red-900/20"
           >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* Left Sidebar */}
+        <div
+          className={`bg-muted/30 border-r border-border overflow-y-auto relative hide-scrollbar transition-all duration-300 ease-in-out ${
+            isSidebarCollapsed
+              ? "-translate-x-full opacity-0 pointer-events-none"
+              : "translate-x-0 opacity-100"
+          }`}
+          style={{
+            width: isSidebarCollapsed ? "0px" : `${sidebarWidth}px`,
+            minWidth: isSidebarCollapsed ? "0px" : `${sidebarWidth}px`,
+          }}
+        >
             <div className="p-6">
             <Card className="p-6">
-            <h2 className="text-lg font-semibold mb-4">Generate AI Agent</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Generate AI Agent</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsSidebarCollapsed(true)}
+                className="h-8 w-8 hover:bg-red-100 dark:hover:bg-red-900/20"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+            </div>
             
             {/* Mode Selection */}
             <div className="mb-4 pb-4 border-b border-border">
@@ -303,7 +331,7 @@ export default function YouTubeAgentChat() {
                           <Label className="text-sm font-medium text-muted-foreground">
                             Video {index + 1}
                           </Label>
-                          {manualVideos.length > 2 && (
+                          {manualVideos.length > 1 && (
                             <Button
                               type="button"
                               variant="ghost"
@@ -359,8 +387,13 @@ export default function YouTubeAgentChat() {
                       <Plus className="w-4 h-4 mr-2" />
                       Add Video
                     </Button>
-                    <div className="text-xs text-muted-foreground text-center pt-2">
-                      Total: {manualVideos.reduce((sum, v) => sum + v.weight, 0)}%
+                    <div className="flex items-center justify-center gap-2 text-xs pt-2">
+                      <span className={isTotalValid ? "text-muted-foreground" : "text-red-600"}>
+                        Total: {totalWeight}%
+                      </span>
+                      {!isTotalValid && (
+                        <AlertTriangle className="w-3 h-3 text-red-600" />
+                      )}
                     </div>
                   </div>
                 </>
@@ -383,12 +416,21 @@ export default function YouTubeAgentChat() {
 
               <Button
                 type="submit"
-                className="w-full bg-red-600 hover:bg-red-700 text-white"
+                className={`w-full text-white ${
+                  isManualMode && !isTotalValid
+                    ? "bg-orange-600 hover:bg-orange-700"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
                 disabled={
                   loading ||
                   (isManualMode
                     ? manualVideos.every((v) => !v.url.trim())
                     : !youtubeURL.trim())
+                }
+                title={
+                  isManualMode && !isTotalValid
+                    ? "Percentages must sum to 100% (will be auto-balanced on submit)"
+                    : undefined
                 }
               >
                 {loading ? (
@@ -398,8 +440,17 @@ export default function YouTubeAgentChat() {
                   </>
                 ) : (
                   <>
-                    <Bot className="w-4 h-4 mr-2" />
-                    Generate Agent
+                    {isManualMode && !isTotalValid ? (
+                      <>
+                        <AlertTriangle className="w-4 h-4 mr-2" />
+                        Generate Agent ({totalWeight}%)
+                      </>
+                    ) : (
+                      <>
+                        <Bot className="w-4 h-4 mr-2" />
+                        Generate Agent
+                      </>
+                    )}
                   </>
                 )}
               </Button>
@@ -425,7 +476,6 @@ export default function YouTubeAgentChat() {
           </Card>
             </div>
           </div>
-        )}
 
         {/* Resize Handle */}
         {!isSidebarCollapsed && (
@@ -441,24 +491,6 @@ export default function YouTubeAgentChat() {
             </div>
           </div>
         )}
-
-        {/* Collapse/Expand Button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="fixed z-20 bg-background border border-border shadow-sm hover:bg-muted transition-all top-20"
-          style={{
-            left: isSidebarCollapsed ? "8px" : `${sidebarWidth - 12}px`,
-            transform: isSidebarCollapsed ? "none" : "translateX(-50%)",
-          }}
-        >
-          {isSidebarCollapsed ? (
-            <ChevronRight className="w-4 h-4" />
-          ) : (
-            <ChevronLeft className="w-4 h-4" />
-          )}
-        </Button>
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col">

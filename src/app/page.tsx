@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Settings, Send, Bot, Loader2, Plus, X, ChevronLeft, ChevronRight, GripVertical, AlertTriangle } from "lucide-react"
+import Link from "next/link"
 
 export default function YouTubeAgentChat() {
   const [isManualMode, setIsManualMode] = useState(false)
@@ -200,10 +201,14 @@ export default function YouTubeAgentChat() {
     setGenerating(true)
 
     try {
+      // Get temperature from localStorage, default to 0.7
+      const savedTemperature = localStorage.getItem("chatTemperature")
+      const temperature = savedTemperature ? parseFloat(savedTemperature) : 0.7
+      
       const res = await fetch("/chat-with-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ persona, history: newHistory }),
+        body: JSON.stringify({ persona, history: newHistory, temperature }),
       })
       const data = await res.json()
       newHistory[newHistory.length - 1][1] = data.reply
@@ -228,9 +233,15 @@ export default function YouTubeAgentChat() {
           </div>
           <h1 className="text-lg font-semibold">YouTube Agent Chat</h1>
         </div>
-        <Button variant="ghost" size="icon" className="text-white hover:bg-red-700">
-          <Settings className="w-5 h-5" />
-        </Button>
+        <Link href="/settings">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="text-white hover:bg-red-700"
+          >
+            <Settings className="w-5 h-5" />
+          </Button>
+        </Link>
       </div>
 
       {/* Main Content */}

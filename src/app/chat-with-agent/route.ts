@@ -10,8 +10,8 @@ type Persona = { name: string; age: string | number; tone: string; interests: st
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json() as { persona: Persona; history: Turn[] };
-    const { persona, history } = body || {};
+    const body = await req.json() as { persona: Persona; history: Turn[]; temperature?: number };
+    const { persona, history, temperature = 0.7 } = body || {};
     if (!persona || !history?.length) {
       return NextResponse.json({ error: "Missing persona or history" }, { status: 400 });
     }
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 
     const chat = await model.startChat({
       history: geminiHistory,
-      generationConfig: { temperature: 0.7 },
+      generationConfig: { temperature: Math.max(0, Math.min(2, temperature)) },
     });
 
     const result = await chat.sendMessage(`${systemPrompt}\n\n${lastUserMsg}`);

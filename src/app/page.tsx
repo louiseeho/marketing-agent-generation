@@ -4,13 +4,15 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
-import { Settings, Send, Bot, Loader2, Plus, X } from "lucide-react"
+import { Settings, Send, Bot, Loader2, Plus, X, ChevronLeft, ChevronRight, GripVertical } from "lucide-react"
 
 export default function YouTubeAgentChat() {
   const [isManualMode, setIsManualMode] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(320) // Default 320px (w-80)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isResizing, setIsResizing] = useState(false)
   const [youtubeURL, setYoutubeURL] = useState("")
   const [manualVideos, setManualVideos] = useState([
     { url: "", weight: 50 },
@@ -79,6 +81,46 @@ export default function YouTubeAgentChat() {
       setManualVideos(normalizeWeights(manualVideos))
     }
   }, [manualVideos.length])
+
+  // Auto-resize sidebar based on mode
+  useEffect(() => {
+    if (!isSidebarCollapsed) {
+      if (isManualMode) {
+        setSidebarWidth(500) // Larger for manual mode
+      } else {
+        setSidebarWidth(320) // Smaller for automatic mode
+      }
+    }
+  }, [isManualMode, isSidebarCollapsed])
+
+  // Handle sidebar resizing
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return
+      const newWidth = e.clientX
+      const minWidth = 200
+      const maxWidth = 800
+      setSidebarWidth(Math.max(minWidth, Math.min(maxWidth, newWidth)))
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove)
+      document.addEventListener("mouseup", handleMouseUp)
+      document.body.style.cursor = "col-resize"
+      document.body.style.userSelect = "none"
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove)
+      document.removeEventListener("mouseup", handleMouseUp)
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+    }
+  }, [isResizing])
 
   const handleGenerateAgent = async (e) => {
     e.preventDefault()
@@ -200,23 +242,54 @@ export default function YouTubeAgentChat() {
       {/* Main Content */}
       <div className="flex w-full pt-16">
         {/* Left Sidebar */}
-        <div className="w-80 bg-muted/30 border-r border-border p-6 overflow-y-auto">
-          <Card className="p-6">
+        {!isSidebarCollapsed && (
+          <div
+            className="bg-muted/30 border-r border-border overflow-y-auto transition-all duration-200 relative"
+            style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
+          >
+            <div className="p-6">
+            <Card className="p-6">
             <h2 className="text-lg font-semibold mb-4">Generate AI Agent</h2>
             
-            {/* Mode Toggle */}
-            <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
-              <div className="flex flex-col">
-                <Label className="text-sm font-medium text-muted-foreground mb-1">
-                  {isManualMode ? "Manual Mode" : "Automatic Mode"}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {isManualMode
-                    ? "Enter video URLs and set weights manually"
-                    : "Automatically find related videos"}
-                </p>
+            {/* Mode Selection */}
+            <div className="mb-4 pb-4 border-b border-border">
+              <Label className="text-sm font-medium text-muted-foreground mb-3 block">
+                Mode
+              </Label>
+              <div className="space-y-2">
+                <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-md hover:bg-muted/50 transition-colors">
+                  <input
+                    type="radio"
+                    name="mode"
+                    value="automatic"
+                    checked={!isManualMode}
+                    onChange={() => setIsManualMode(false)}
+                    className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">Automatic Mode</div>
+                    <div className="text-xs text-muted-foreground">
+                      Automatically find related videos
+                    </div>
+                  </div>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-md hover:bg-muted/50 transition-colors">
+                  <input
+                    type="radio"
+                    name="mode"
+                    value="manual"
+                    checked={isManualMode}
+                    onChange={() => setIsManualMode(true)}
+                    className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">Manual Mode</div>
+                    <div className="text-xs text-muted-foreground">
+                      Enter video URLs and set weights manually
+                    </div>
+                  </div>
+                </label>
               </div>
-              <Switch checked={isManualMode} onCheckedChange={setIsManualMode} />
             </div>
 
             <form onSubmit={handleGenerateAgent} className="space-y-4">
@@ -350,7 +423,42 @@ export default function YouTubeAgentChat() {
               </div>
             )}
           </Card>
-        </div>
+            </div>
+          </div>
+        )}
+
+        {/* Resize Handle */}
+        {!isSidebarCollapsed && (
+          <div
+            className="w-1 bg-border hover:bg-red-600 cursor-col-resize transition-colors relative group"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              setIsResizing(true)
+            }}
+          >
+            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-8 flex items-center justify-center">
+              <GripVertical className="w-4 h-4 text-muted-foreground group-hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          </div>
+        )}
+
+        {/* Collapse/Expand Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="fixed z-20 bg-background border border-border shadow-sm hover:bg-muted transition-all top-20"
+          style={{
+            left: isSidebarCollapsed ? "8px" : `${sidebarWidth - 12}px`,
+            transform: isSidebarCollapsed ? "none" : "translateX(-50%)",
+          }}
+        >
+          {isSidebarCollapsed ? (
+            <ChevronRight className="w-4 h-4" />
+          ) : (
+            <ChevronLeft className="w-4 h-4" />
+          )}
+        </Button>
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col">

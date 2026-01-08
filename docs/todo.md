@@ -1,22 +1,17 @@
-To-Do
+## To-Do
 
-- [] Create document of how generation works
+- [ ] Create document on how generation works (or create a page for this)
 - [ ] Host on AWS
 - [ ] Move API calls to AWS Lambda functions
 - [ ] Settings page
+- [ ] Refactor codebase to reduce redundancy
 
 
 Settings page:
-## Planned Settings and Customization Features
-
-The following settings and customization options are planned for future development to improve user control, flexibility, and UX in the YouTube Agent Chat app:
-
-### AI Model Configuration
-- **Temperature Slider**: Adjust the randomness/creativity of responses (0.0–1.0).
+AI Model Configuration
 - **Max Response Length**: Limit how long agent replies can be.
-- **Model Selection**: Allow switching between Gemini models (e.g., Pro, Flash).
 
-### Comment Processing
+Comment Processing
 - **Number of Comments**: User-defined number of comments to analyze (default 100).
 - **Comment Sorting Options**: Sort by relevance, top liked, or newest.
 - **Comment Filters**:
@@ -45,7 +40,3 @@ The following settings and customization options are planned for future developm
 
 ### Persona Tweaking
 - Modify the tone, interests, and focus areas of the generated persona based on user preferences.
-
----
-
-These settings will be accessible through a dedicated **Settings Page** (gear icon, top-right) for cleaner UX and better scalability.

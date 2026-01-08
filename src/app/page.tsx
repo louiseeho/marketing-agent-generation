@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -8,114 +8,38 @@ import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Settings, Send, Bot, Loader2, Plus, X, ChevronLeft, ChevronRight, GripVertical, AlertTriangle } from "lucide-react"
 import Link from "next/link"
+import { extractVideoId } from "@/lib/youtube"
+import { normalizeWeights } from "@/lib/weights"
+import { useSidebar } from "@/hooks/useSidebar"
+import { useManualVideos } from "@/hooks/useManualVideos"
 
 export default function YouTubeAgentChat() {
   const [isManualMode, setIsManualMode] = useState(false)
-  const [sidebarWidth, setSidebarWidth] = useState(320) // Default 320px (w-80)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [isResizing, setIsResizing] = useState(false)
   const [youtubeURL, setYoutubeURL] = useState("")
-  const [manualVideos, setManualVideos] = useState([
-    { url: "", weight: 100 },
-  ])
   const [persona, setPersona] = useState(null)
   const [history, setHistory] = useState([])
   const [userInput, setUserInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
 
-  const extractVideoId = (url) => {
-    const match = url.match(/(?:youtube\.com.*(?:\?|&)v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-    return match ? match[1] : null
-  }
+  // Sidebar management hook
+  const {
+    sidebarWidth,
+    isSidebarCollapsed,
+    setIsSidebarCollapsed,
+    startResizing,
+  } = useSidebar(isManualMode)
 
-  // Normalize weights to sum to 100%
-  const normalizeWeights = (videos) => {
-    const total = videos.reduce((sum, v) => sum + (v.weight || 0), 0)
-    if (total === 0) return videos
-    return videos.map((v) => ({
-      ...v,
-      weight: Math.round((v.weight / total) * 100),
-    }))
-  }
-
-  // Update weight for a specific video (no auto-normalization)
-  const updateWeight = (index, newWeight) => {
-    const updated = [...manualVideos]
-    updated[index].weight = Math.max(0, Math.min(100, newWeight))
-    setManualVideos(updated)
-  }
-
-  // Calculate total weight percentage
-  const totalWeight = manualVideos.reduce((sum, v) => sum + v.weight, 0)
-  const isTotalValid = totalWeight === 100
-
-  // Add a new video
-  const addVideo = () => {
-    const currentTotal = manualVideos.reduce((sum, v) => sum + v.weight, 0)
-    const newWeight = currentTotal > 0 ? Math.floor(100 / (manualVideos.length + 1)) : 100 / (manualVideos.length + 1)
-    const updated = manualVideos.map((v) => ({
-      ...v,
-      weight: Math.floor((v.weight / currentTotal) * (100 - newWeight)) || newWeight,
-    }))
-    updated.push({ url: "", weight: newWeight })
-    setManualVideos(normalizeWeights(updated))
-  }
-
-  // Remove a video
-  const removeVideo = (index) => {
-    if (manualVideos.length <= 1) return // Keep at least 1 video
-    const removed = manualVideos.filter((_, i) => i !== index)
-    setManualVideos(normalizeWeights(removed))
-  }
-
-  // Ensure weights sum to 100% when videos are added/removed
-  useEffect(() => {
-    const total = manualVideos.reduce((sum, v) => sum + v.weight, 0)
-    if (total !== 100 && total > 0 && manualVideos.length > 0) {
-      setManualVideos(normalizeWeights(manualVideos))
-    }
-  }, [manualVideos.length])
-
-  // Auto-resize sidebar based on mode
-  useEffect(() => {
-    if (!isSidebarCollapsed) {
-      if (isManualMode) {
-        setSidebarWidth(500) // Larger for manual mode
-      } else {
-        setSidebarWidth(320) // Smaller for automatic mode
-      }
-    }
-  }, [isManualMode, isSidebarCollapsed])
-
-  // Handle sidebar resizing
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return
-      const newWidth = e.clientX
-      const minWidth = 200
-      const maxWidth = 800
-      setSidebarWidth(Math.max(minWidth, Math.min(maxWidth, newWidth)))
-    }
-
-    const handleMouseUp = () => {
-      setIsResizing(false)
-    }
-
-    if (isResizing) {
-      document.addEventListener("mousemove", handleMouseMove)
-      document.addEventListener("mouseup", handleMouseUp)
-      document.body.style.cursor = "col-resize"
-      document.body.style.userSelect = "none"
-    }
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove)
-      document.removeEventListener("mouseup", handleMouseUp)
-      document.body.style.cursor = ""
-      document.body.style.userSelect = ""
-    }
-  }, [isResizing])
+  // Manual videos management hook
+  const {
+    manualVideos,
+    updateWeight,
+    addVideo,
+    removeVideo,
+    updateVideoUrl,
+    totalWeight,
+    isTotalValid,
+  } = useManualVideos([{ url: "", weight: 100 }])
 
   const handleGenerateAgent = async (e) => {
     e.preventDefault()
@@ -128,8 +52,8 @@ export default function YouTubeAgentChat() {
       }
       
       // Normalize weights for valid videos only
-      const totalWeight = validVideos.reduce((sum, v) => sum + v.weight, 0)
-      if (totalWeight === 0) {
+      const validTotalWeight = validVideos.reduce((sum, v) => sum + v.weight, 0)
+      if (validTotalWeight === 0) {
         return alert("Please set weights for at least one video")
       }
       
@@ -138,6 +62,12 @@ export default function YouTubeAgentChat() {
 
       setLoading(true)
       try {
+        // Get comment processing settings from localStorage
+        const savedCommentCount = localStorage.getItem("commentCount")
+        const savedCommentSort = localStorage.getItem("commentSort")
+        const commentCount = savedCommentCount ? parseInt(savedCommentCount) : 100
+        const commentSort = savedCommentSort || "relevance"
+
         const videos = normalizedVideos.map((v) => ({
           videoId: extractVideoId(v.url),
           weight: v.weight,
@@ -146,7 +76,7 @@ export default function YouTubeAgentChat() {
         const res = await fetch("/generate-agent", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "manual", videos }),
+          body: JSON.stringify({ mode: "manual", videos, commentCount, commentSort }),
         })
         const data = await res.json()
         if (data.error) {
@@ -169,10 +99,16 @@ export default function YouTubeAgentChat() {
 
       setLoading(true)
       try {
+        // Get comment processing settings from localStorage
+        const savedCommentCount = localStorage.getItem("commentCount")
+        const savedCommentSort = localStorage.getItem("commentSort")
+        const commentCount = savedCommentCount ? parseInt(savedCommentCount) : 100
+        const commentSort = savedCommentSort || "relevance"
+
         const res = await fetch("/generate-agent", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "automatic", videoId }),
+          body: JSON.stringify({ mode: "automatic", videoId, commentCount, commentSort }),
         })
         const data = await res.json()
         if (data.error) {
@@ -357,11 +293,7 @@ export default function YouTubeAgentChat() {
                         <Input
                           placeholder="https://youtube.com/watch?v=..."
                           value={video.url}
-                          onChange={(e) => {
-                            const updated = [...manualVideos]
-                            updated[index].url = e.target.value
-                            setManualVideos(updated)
-                          }}
+                          onChange={(e) => updateVideoUrl(index, e.target.value)}
                           className="bg-background"
                         />
                         <div className="space-y-2">
@@ -494,7 +426,7 @@ export default function YouTubeAgentChat() {
             className="w-1 bg-border hover:bg-red-600 cursor-col-resize transition-colors relative group"
             onMouseDown={(e) => {
               e.preventDefault()
-              setIsResizing(true)
+              startResizing()
             }}
           >
             <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-8 flex items-center justify-center">

@@ -6,13 +6,13 @@ export const runtime = "nodejs"; // Gemini SDK needs Node runtime
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
-async function fetchComments(videoId: string, apiKey: string): Promise<string[]> {
+async function fetchComments(videoId: string, apiKey: string, maxResults: number = 100, order: string = "relevance"): Promise<string[]> {
   const res = await axios.get("https://www.googleapis.com/youtube/v3/commentThreads", {
     params: {
       part: "snippet",
       videoId,
-      maxResults: 100,
-      order: "relevance",
+      maxResults: Math.max(10, Math.min(500, maxResults)),
+      order: order === "time" ? "time" : "relevance",
       textFormat: "plainText",
       key: apiKey,
     },
@@ -35,7 +35,7 @@ function shuffleArray<T>(array: T[]): T[] {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { mode = "automatic", videoId, videos } = body;
+    const { mode = "automatic", videoId, videos, commentCount = 100, commentSort = "relevance" } = body;
 
     if (!process.env.YOUTUBE_API_KEY) {
       return NextResponse.json({ error: "Missing YOUTUBE_API_KEY" }, { status: 500 });
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
       for (const video of videos) {
         if (!video.videoId || !video.weight) continue;
         try {
-          const comments = await fetchComments(video.videoId, process.env.YOUTUBE_API_KEY);
+          const comments = await fetchComments(video.videoId, process.env.YOUTUBE_API_KEY, commentCount, commentSort);
           allVideoComments.push({
             videoId: video.videoId,
             comments: Array.from(new Set(comments)), // Remove duplicates
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
       const allComments: string[] = [];
 
       // Step 1a: Comments from main video
-      const mainComments = await fetchComments(videoId, process.env.YOUTUBE_API_KEY);
+      const mainComments = await fetchComments(videoId, process.env.YOUTUBE_API_KEY, commentCount, commentSort);
       allComments.push(...mainComments);
 
       console.log("Fetching related videos for videoId:", videoId, typeof videoId);
@@ -157,7 +157,7 @@ export async function POST(req: Request) {
       const relatedComments: string[] = [];
       for (const relId of relatedVideoIds) {
         try {
-          const comments = await fetchComments(relId, process.env.YOUTUBE_API_KEY);
+          const comments = await fetchComments(relId, process.env.YOUTUBE_API_KEY, commentCount, commentSort);
           relatedComments.push(...comments);
           allComments.push(...comments);
         } catch (err: any) {

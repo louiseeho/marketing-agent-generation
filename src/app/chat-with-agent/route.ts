@@ -15,8 +15,9 @@ export async function POST(req: Request) {
       history: Turn[]; 
       temperature?: number;
       responseStyle?: string;
+      maxResponseLength?: number;
     };
-    const { persona, history, temperature = 0.7, responseStyle = "casual" } = body || {};
+    const { persona, history, temperature = 0.7, responseStyle = "casual", maxResponseLength = 1024 } = body || {};
     if (!persona || !history?.length) {
       return NextResponse.json({ error: "Missing persona or history" }, { status: 400 });
     }
@@ -60,7 +61,10 @@ export async function POST(req: Request) {
 
     const chat = await model.startChat({
       history: geminiHistory,
-      generationConfig: { temperature: Math.max(0, Math.min(2, temperature)) },
+      generationConfig: { 
+        temperature: Math.max(0, Math.min(2, temperature)),
+        maxOutputTokens: Math.max(50, Math.min(2048, maxResponseLength)),
+      },
     });
 
     const result = await chat.sendMessage(`${systemPrompt}\n\n${lastUserMsg}`);

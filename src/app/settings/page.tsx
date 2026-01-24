@@ -15,6 +15,7 @@ export default function SettingsPage() {
   const [commentSort, setCommentSort] = useState("relevance")
   const [responseStyle, setResponseStyle] = useState("casual")
   const [conversationHistory, setConversationHistory] = useState(10)
+  const [maxResponseLength, setMaxResponseLength] = useState(1024)
 
   // Load temperature from localStorage on mount, default to 0.7
   useEffect(() => {
@@ -69,6 +70,17 @@ export default function SettingsPage() {
     }
   }, [])
 
+  // Load max response length from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("maxResponseLength")
+    if (saved !== null) {
+      const parsed = parseInt(saved)
+      if (!isNaN(parsed)) {
+        setMaxResponseLength(parsed)
+      }
+    }
+  }, [])
+
   // Save temperature to localStorage when it changes
   const updateTemperature = (value: number) => {
     const clampedValue = Math.max(0, Math.min(2, value))
@@ -100,6 +112,13 @@ export default function SettingsPage() {
     const clampedValue = Math.max(1, Math.min(50, value))
     setConversationHistory(clampedValue)
     localStorage.setItem("conversationHistory", clampedValue.toString())
+  }
+
+  // Save max response length to localStorage when it changes
+  const updateMaxResponseLength = (value: number) => {
+    const clampedValue = Math.max(50, Math.min(2048, value))
+    setMaxResponseLength(clampedValue)
+    localStorage.setItem("maxResponseLength", clampedValue.toString())
   }
 
   // Clear chat history
@@ -251,7 +270,7 @@ export default function SettingsPage() {
                         value="relevance"
                         checked={commentSort === "relevance"}
                         onChange={(e) => updateCommentSort(e.target.value)}
-                        className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                        className="w-4 h-4 text-red-600 focus:outline-none"
                       />
                       <div className="flex-1">
                         <div className="text-sm font-medium">Relevance</div>
@@ -267,7 +286,7 @@ export default function SettingsPage() {
                         value="time"
                         checked={commentSort === "time"}
                         onChange={(e) => updateCommentSort(e.target.value)}
-                        className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                        className="w-4 h-4 text-red-600 focus:outline-none"
                       />
                       <div className="flex-1">
                         <div className="text-sm font-medium">Newest First</div>
@@ -306,7 +325,7 @@ export default function SettingsPage() {
                         value="casual"
                         checked={responseStyle === "casual"}
                         onChange={(e) => updateResponseStyle(e.target.value)}
-                        className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                        className="w-4 h-4 text-red-600 focus:outline-none"
                       />
                       <div className="flex-1">
                         <div className="text-sm font-medium">Casual</div>
@@ -322,7 +341,7 @@ export default function SettingsPage() {
                         value="formal"
                         checked={responseStyle === "formal"}
                         onChange={(e) => updateResponseStyle(e.target.value)}
-                        className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                        className="w-4 h-4 text-red-600 focus:outline-none"
                       />
                       <div className="flex-1">
                         <div className="text-sm font-medium">Formal</div>
@@ -338,7 +357,7 @@ export default function SettingsPage() {
                         value="emoji-heavy"
                         checked={responseStyle === "emoji-heavy"}
                         onChange={(e) => updateResponseStyle(e.target.value)}
-                        className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                        className="w-4 h-4 text-red-600 focus:outline-none"
                       />
                       <div className="flex-1">
                         <div className="text-sm font-medium">Emoji-Heavy</div>
@@ -354,7 +373,7 @@ export default function SettingsPage() {
                         value="concise"
                         checked={responseStyle === "concise"}
                         onChange={(e) => updateResponseStyle(e.target.value)}
-                        className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                        className="w-4 h-4 text-red-600 focus:outline-none"
                       />
                       <div className="flex-1">
                         <div className="text-sm font-medium">Concise</div>
@@ -401,6 +420,48 @@ export default function SettingsPage() {
                     onValueChange={(value) => updateConversationHistory(value)}
                     className="w-full"
                   />
+                </div>
+
+                {/* Max Response Length */}
+                <div className="space-y-3 pt-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-2 block">
+                      Max Response Length
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Maximum length of agent responses in tokens. Lower values create shorter responses, higher values allow longer, more detailed responses (default: 1024, max: 2048)
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <Label className="text-xs text-muted-foreground">
+                      Tokens: {maxResponseLength}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="50"
+                      max="2048"
+                      step="50"
+                      value={maxResponseLength}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 1024
+                        updateMaxResponseLength(value)
+                      }}
+                      className="w-20 h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <Slider
+                    min={50}
+                    max={2048}
+                    step={50}
+                    value={maxResponseLength}
+                    onValueChange={(value) => updateMaxResponseLength(value)}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Short (50)</span>
+                    <span>Medium (1024)</span>
+                    <span>Long (2048)</span>
+                  </div>
                 </div>
 
                 {/* Clear History */}

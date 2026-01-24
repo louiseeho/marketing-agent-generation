@@ -154,6 +154,9 @@ export default function YouTubeAgentChat() {
       const savedHistoryLimit = localStorage.getItem("conversationHistory")
       const historyLimit = savedHistoryLimit ? parseInt(savedHistoryLimit) : 10
       
+      const savedMaxResponseLength = localStorage.getItem("maxResponseLength")
+      const maxResponseLength = savedMaxResponseLength ? parseInt(savedMaxResponseLength) : 1024
+      
       // Limit history to the specified number of messages
       const limitedHistory = newHistory.slice(-historyLimit)
       
@@ -165,6 +168,7 @@ export default function YouTubeAgentChat() {
           history: limitedHistory, 
           temperature,
           responseStyle: savedResponseStyle,
+          maxResponseLength,
         }),
       })
       const data = await res.json()
@@ -260,7 +264,7 @@ export default function YouTubeAgentChat() {
                     value="automatic"
                     checked={!isManualMode}
                     onChange={() => setIsManualMode(false)}
-                    className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                    className="w-4 h-4 text-red-600 focus:outline-none"
                   />
                   <div className="flex-1">
                     <div className="text-sm font-medium">Automatic Mode</div>
@@ -276,7 +280,7 @@ export default function YouTubeAgentChat() {
                     value="manual"
                     checked={isManualMode}
                     onChange={() => setIsManualMode(true)}
-                    className="w-4 h-4 text-red-600 focus:ring-red-600 focus:ring-2"
+                    className="w-4 h-4 text-red-600 focus:outline-none"
                   />
                   <div className="flex-1">
                     <div className="text-sm font-medium">Manual Mode</div>

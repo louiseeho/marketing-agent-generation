@@ -135,6 +135,68 @@
   display: none; /* Chrome, Safari and Opera */
 }
 
+/* Slider red track styling */
+.slider-red-track {
+  /* Webkit browsers (Chrome, Safari, Edge) */
+  -webkit-appearance: none;
+}
+
+/* Webkit track - the gradient from inline style will show through */
+.slider-red-track::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 0.5rem;
+  background: transparent;
+}
+
+/* Webkit thumb */
+.slider-red-track::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #dc2626;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  margin-top: -4px;
+}
+
+.slider-red-track::-webkit-slider-thumb:hover {
+  background: #b91c1c;
+}
+
+.slider-red-track::-webkit-slider-thumb:active {
+  background: #991b1b;
+}
+
+/* Firefox track - gradient from inline style */
+.slider-red-track::-moz-range-track {
+  height: 8px;
+  border-radius: 0.5rem;
+  border: none;
+  background: transparent;
+}
+
+/* Firefox thumb */
+.slider-red-track::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #dc2626;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.slider-red-track::-moz-range-thumb:hover {
+  background: #b91c1c;
+}
+
+.slider-red-track::-moz-range-thumb:active {
+  background: #991b1b;
+}
+
 /* Smooth page transitions */
 @keyframes fadeIn {
   from {

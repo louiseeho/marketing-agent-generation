@@ -35,7 +35,15 @@ function shuffleArray<T>(array: T[]): T[] {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { mode = "automatic", videoId, videos, commentCount = 100, commentSort = "relevance" } = body;
+    const { 
+      mode = "automatic", 
+      videoId, 
+      videos, 
+      commentCount = 100, 
+      commentSort = "relevance",
+      relatedVideosCount = 5,
+      keywordSensitivity = 50,
+    } = body;
 
     if (!process.env.YOUTUBE_API_KEY) {
       return NextResponse.json({ error: "Missing YOUTUBE_API_KEY" }, { status: 500 });
@@ -109,12 +117,23 @@ export async function POST(req: Request) {
       // Step 1b: Generate keyword search query using Gemini
       const keywordModel = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
+      // Adjust prompt based on keyword sensitivity
+      let sensitivityInstruction = "";
+      if (keywordSensitivity <= 33) {
+        // Narrow: Focus on exact topic
+        sensitivityInstruction = "Focus on extracting keywords that are **very specific to the exact topic and content** of this video. Prioritize keywords that match the precise subject matter, avoiding broader themes. The goal is to find videos that are nearly identical in topic.";
+      } else if (keywordSensitivity >= 67) {
+        // Broad: More diverse, related topics
+        sensitivityInstruction = "Extract keywords that capture **broader themes, related topics, and diverse content** that viewers of this video might also enjoy. Think about adjacent topics, similar genres, and related interests. The goal is to find videos that are thematically related but may cover different aspects or perspectives.";
+      } else {
+        // Balanced: Current behavior
+        sensitivityInstruction = "These videos could be related by **topic, tone, genre, audience, or creator style**. Your goal is to capture the *core themes, community interests, and format* that define the viewing experience — not just literal details from the video. Think about what types of content YouTube would recommend to viewers who liked this, even if those videos aren't exactly on the same topic.";
+      }
+
       const keywordPrompt = `
     You are a YouTube recommendation strategist. Based on the following video title and comments, extract 5 to 7 concise keywords or short phrases that would help surface *similar videos* on YouTube.
 
-    These videos could be related by **topic, tone, genre, audience, or creator style**. Your goal is to capture the *core themes, community interests, and format* that define the viewing experience — not just literal details from the video.
-
-    Think about what types of content YouTube would recommend to viewers who liked this, even if those videos aren't exactly on the same topic.
+    ${sensitivityInstruction}
 
     Title: "${videoTitle}"
 
@@ -144,7 +163,7 @@ export async function POST(req: Request) {
           part: "snippet",
           q: keywordQuery,
           type: "video",
-          maxResults: 5,
+          maxResults: Math.max(1, Math.min(20, relatedVideosCount)),
           key: process.env.YOUTUBE_API_KEY,
         },
       });

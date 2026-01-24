@@ -16,6 +16,8 @@ export default function SettingsPage() {
   const [responseStyle, setResponseStyle] = useState("casual")
   const [conversationHistory, setConversationHistory] = useState(10)
   const [maxResponseLength, setMaxResponseLength] = useState(1024)
+  const [relatedVideosCount, setRelatedVideosCount] = useState(5)
+  const [keywordSensitivity, setKeywordSensitivity] = useState(50)
 
   // Load temperature from localStorage on mount, default to 0.7
   useEffect(() => {
@@ -81,6 +83,28 @@ export default function SettingsPage() {
     }
   }, [])
 
+  // Load related videos count from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("relatedVideosCount")
+    if (saved !== null) {
+      const parsed = parseInt(saved)
+      if (!isNaN(parsed)) {
+        setRelatedVideosCount(parsed)
+      }
+    }
+  }, [])
+
+  // Load keyword sensitivity from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("keywordSensitivity")
+    if (saved !== null) {
+      const parsed = parseInt(saved)
+      if (!isNaN(parsed)) {
+        setKeywordSensitivity(parsed)
+      }
+    }
+  }, [])
+
   // Save temperature to localStorage when it changes
   const updateTemperature = (value: number) => {
     const clampedValue = Math.max(0, Math.min(2, value))
@@ -119,6 +143,20 @@ export default function SettingsPage() {
     const clampedValue = Math.max(50, Math.min(2048, value))
     setMaxResponseLength(clampedValue)
     localStorage.setItem("maxResponseLength", clampedValue.toString())
+  }
+
+  // Save related videos count to localStorage when it changes
+  const updateRelatedVideosCount = (value: number) => {
+    const clampedValue = Math.max(1, Math.min(20, value))
+    setRelatedVideosCount(clampedValue)
+    localStorage.setItem("relatedVideosCount", clampedValue.toString())
+  }
+
+  // Save keyword sensitivity to localStorage when it changes
+  const updateKeywordSensitivity = (value: number) => {
+    const clampedValue = Math.max(0, Math.min(100, value))
+    setKeywordSensitivity(clampedValue)
+    localStorage.setItem("keywordSensitivity", clampedValue.toString())
   }
 
   // Clear chat history
@@ -295,6 +333,97 @@ export default function SettingsPage() {
                         </div>
                       </div>
                     </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Automatic Mode Settings */}
+              <div className="space-y-4 pt-6 border-t border-border">
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground mb-2 block">
+                    Automatic Mode
+                  </Label>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Configure how automatic mode finds and selects related videos
+                  </p>
+                </div>
+
+                {/* Number of Related Videos */}
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-2 block">
+                      Number of Related Videos
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      How many related videos to search for and analyze (default: 5, max: 20)
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <Label className="text-xs text-muted-foreground">
+                      Videos: {relatedVideosCount}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="20"
+                      step="1"
+                      value={relatedVideosCount}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 5
+                        updateRelatedVideosCount(value)
+                      }}
+                      className="w-20 h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <Slider
+                    min={1}
+                    max={20}
+                    step={1}
+                    value={relatedVideosCount}
+                    onValueChange={(value) => updateRelatedVideosCount(value)}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Keyword Extraction Sensitivity */}
+                <div className="space-y-3 pt-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-2 block">
+                      Keyword Extraction Sensitivity
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Controls how broad or narrow the related video search is. Narrow focuses on very similar content, while broad finds more diverse but related videos (default: 50)
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <Label className="text-xs text-muted-foreground">
+                      Sensitivity: {keywordSensitivity}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={keywordSensitivity}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 50
+                        updateKeywordSensitivity(value)
+                      }}
+                      className="w-20 h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <Slider
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={keywordSensitivity}
+                    onValueChange={(value) => updateKeywordSensitivity(value)}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Narrow (0)</span>
+                    <span>Balanced (50)</span>
+                    <span>Broad (100)</span>
                   </div>
                 </div>
               </div>

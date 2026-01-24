@@ -114,10 +114,23 @@ export default function YouTubeAgentChat() {
         const commentCount = savedCommentCount ? parseInt(savedCommentCount) : 100
         const commentSort = savedCommentSort || "relevance"
 
+        // Get automatic mode settings from localStorage
+        const savedRelatedVideosCount = localStorage.getItem("relatedVideosCount")
+        const savedKeywordSensitivity = localStorage.getItem("keywordSensitivity")
+        const relatedVideosCount = savedRelatedVideosCount ? parseInt(savedRelatedVideosCount) : 5
+        const keywordSensitivity = savedKeywordSensitivity ? parseInt(savedKeywordSensitivity) : 50
+
         const res = await fetch("/generate-agent", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "automatic", videoId, commentCount, commentSort }),
+          body: JSON.stringify({ 
+            mode: "automatic", 
+            videoId, 
+            commentCount, 
+            commentSort,
+            relatedVideosCount,
+            keywordSensitivity,
+          }),
         })
         const data = await res.json()
         if (data.error) {

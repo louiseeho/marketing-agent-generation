@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
-import { Settings, Send, Bot, Loader2, Plus, X, ChevronLeft, ChevronRight, GripVertical, AlertTriangle } from "lucide-react"
+import { Settings, Send, Bot, Loader2, Plus, X, ChevronLeft, ChevronRight, GripVertical, AlertTriangle, Download } from "lucide-react"
 import Link from "next/link"
 import { extractVideoId } from "@/lib/youtube"
 import { normalizeWeights } from "@/lib/weights"
@@ -193,6 +193,34 @@ export default function YouTubeAgentChat() {
     } finally {
       setGenerating(false)
     }
+  }
+
+  const handleExportPersona = () => {
+    if (!persona) return
+
+    // Create a clean JSON object with the persona data
+    const personaData = {
+      name: persona.name,
+      age: persona.age,
+      tone: persona.tone,
+      interests: persona.interests,
+      ...(persona.sampleComment && { sampleComment: persona.sampleComment }),
+      exportedAt: new Date().toISOString(),
+    }
+
+    // Convert to JSON string with pretty formatting
+    const jsonString = JSON.stringify(personaData, null, 2)
+    
+    // Create a blob and download
+    const blob = new Blob([jsonString], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `persona-${persona.name.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -439,7 +467,19 @@ export default function YouTubeAgentChat() {
 
             {persona && (
               <div className="mt-6 p-4 bg-card rounded-lg border">
-                <h3 className="font-semibold text-sm text-muted-foreground mb-2">Generated Agent</h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-sm text-muted-foreground">Generated Agent</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportPersona}
+                    className="h-7 px-2 text-xs"
+                    title="Export persona as JSON"
+                  >
+                    <Download className="w-3 h-3 mr-1" />
+                    Export
+                  </Button>
+                </div>
                 <div className="space-y-2">
                   <p className="font-medium">{persona.name}</p>
                   <p className="text-sm text-muted-foreground">

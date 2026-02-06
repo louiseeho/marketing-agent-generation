@@ -50,7 +50,7 @@ export default function YouTubeAgentChat() {
     isTotalValid,
   } = useManualVideos([{ url: "", weight: 100 }])
 
-  const handleGenerateAgent = async (e) => {
+  const handleGenerateAgent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
     if (isManualMode) {
@@ -149,7 +149,7 @@ export default function YouTubeAgentChat() {
     }
   }
 
-  const handleChat = async (e) => {
+  const handleChat = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!userInput.trim()) return
 

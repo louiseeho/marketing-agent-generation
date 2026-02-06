@@ -13,11 +13,14 @@ import { normalizeWeights } from "@/lib/weights"
 import { useSidebar } from "@/hooks/useSidebar"
 import { useManualVideos } from "@/hooks/useManualVideos"
 
+type Persona = { name: string; age: string | number; tone: string; interests: string[]; sampleComment?: string }
+type HistoryTurn = [user: string, bot: string | null]
+
 export default function YouTubeAgentChat() {
   const [isManualMode, setIsManualMode] = useState(false)
   const [youtubeURL, setYoutubeURL] = useState("")
-  const [persona, setPersona] = useState(null)
-  const [history, setHistory] = useState([])
+  const [persona, setPersona] = useState<Persona | null>(null)
+  const [history, setHistory] = useState<HistoryTurn[]>([])
   const [userInput, setUserInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -153,7 +156,7 @@ export default function YouTubeAgentChat() {
     e.preventDefault()
     if (!userInput.trim()) return
 
-    const newHistory = [...history, [userInput, ""]]
+    const newHistory: HistoryTurn[] = [...history, [userInput, ""]]
     setHistory(newHistory)
     setUserInput("")
     setGenerating(true)
@@ -186,7 +189,7 @@ export default function YouTubeAgentChat() {
       })
       const data = await res.json()
       newHistory[newHistory.length - 1][1] = data.reply
-      setHistory([...newHistory])
+      setHistory([...newHistory] as HistoryTurn[])
     } catch (err) {
       console.error("Chat error:", err)
       alert("Agent failed to reply.")

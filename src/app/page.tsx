@@ -236,7 +236,7 @@ export default function YouTubeAgentChat() {
               <div className="w-0 h-0 border-l-[6px] border-l-white border-t-[3px] border-t-transparent border-b-[3px] border-b-transparent ml-1"></div>
             </div>
           </div>
-          <h1 className="text-lg font-semibold">YouTube Agent Chat</h1>
+          <h1 className="text-lg font-semibold">YouTube Agent</h1>
         </div>
         <Link href="/settings">
           <Button 

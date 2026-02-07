@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "YouTube Agent Chat",
+  title: "YouTube Agent",
   description: "Generate AI agents from YouTube comments and chat with them",
 };
 

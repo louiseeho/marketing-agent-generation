@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch: # Allow manual trigger
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted # Uses your server as the runner
     
     steps:
       - name: Checkout code
@@ -25,17 +26,11 @@ jobs:
       - name: Build application
         run: npm run build
       
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: bsb-vdi-7.bus.sfu.ca
-          username: jason
-          port: 22
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd ~/marketing-agent-generation
-            git pull origin main
-            npm ci
-            npm run build
-            npx pm2 restart marketing-agent
-            npx pm2 logs marketing-agent --lines 5 --nostream
+      - name: Deploy
+        run: |
+          cd ~/marketing-agent-generation
+          git pull origin main
+          npm ci
+          npm run build
+          npx pm2 restart marketing-agent
+          npx pm2 logs marketing-agent --lines 5 --nostream

@@ -16,6 +16,26 @@ import { useManualVideos } from "@/hooks/useManualVideos"
 type Persona = { name: string; age: string | number; tone: string; interests: string[]; sampleComment?: string }
 type HistoryTurn = [user: string, bot: string | null]
 
+const SESSION_CHAT_HISTORY_KEY = "youtubeAgentChatHistory"
+const SESSION_PERSONA_KEY = "youtubeAgentPersona"
+
+function parseStoredHistory(raw: string | null): HistoryTurn[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (row): row is HistoryTurn =>
+        Array.isArray(row) &&
+        row.length === 2 &&
+        typeof row[0] === "string" &&
+        (typeof row[1] === "string" || row[1] === null)
+    )
+  } catch {
+    return []
+  }
+}
+
 export default function YouTubeAgentChat() {
   const [isManualMode, setIsManualMode] = useState(false)
   const [youtubeURL, setYoutubeURL] = useState("")
@@ -24,11 +44,67 @@ export default function YouTubeAgentChat() {
   const [userInput, setUserInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  /** After true, rehydration from sessionStorage is done — persist only then so we don't write [] over saved chat */
+  const [sessionReady, setSessionReady] = useState(false)
+
+  // Restore chat + persona from sessionStorage (survives navigation to /settings)
+  useEffect(() => {
+    try {
+      const storedHistory = parseStoredHistory(sessionStorage.getItem(SESSION_CHAT_HISTORY_KEY))
+      const storedPersonaRaw = sessionStorage.getItem(SESSION_PERSONA_KEY)
+      let storedPersona: Persona | null = null
+      if (storedPersonaRaw) {
+        try {
+          storedPersona = JSON.parse(storedPersonaRaw) as Persona
+        } catch {
+          storedPersona = null
+        }
+      }
+      if (storedHistory.length > 0) {
+        setHistory(storedHistory)
+      }
+      if (storedPersona) {
+        setPersona(storedPersona)
+      }
+    } catch {
+      /* ignore */
+    }
+    setSessionReady(true)
+  }, [])
+
+  // Persist chat history after hydration (sessionReady ensures state matches what we read from storage)
+  useEffect(() => {
+    if (!sessionReady) return
+    try {
+      sessionStorage.setItem(SESSION_CHAT_HISTORY_KEY, JSON.stringify(history))
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [history, sessionReady])
+
+  // Persist persona after hydration
+  useEffect(() => {
+    if (!sessionReady) return
+    try {
+      if (persona) {
+        sessionStorage.setItem(SESSION_PERSONA_KEY, JSON.stringify(persona))
+      } else {
+        sessionStorage.removeItem(SESSION_PERSONA_KEY)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [persona, sessionReady])
 
   // Listen for clear history event from settings page
   useEffect(() => {
     const handleClearHistory = () => {
       setHistory([])
+      try {
+        sessionStorage.removeItem(SESSION_CHAT_HISTORY_KEY)
+      } catch {
+        /* ignore */
+      }
     }
     window.addEventListener("clearChatHistory", handleClearHistory)
     return () => window.removeEventListener("clearChatHistory", handleClearHistory)

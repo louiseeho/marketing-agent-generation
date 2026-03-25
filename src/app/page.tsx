@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
-import { Settings, Send, Bot, Loader2, Plus, X, ChevronLeft, ChevronRight, GripVertical, AlertTriangle, Download } from "lucide-react"
+import { Settings, Send, Bot, Loader2, Plus, X, ChevronLeft, ChevronRight, GripVertical, AlertTriangle, Download, Upload } from "lucide-react"
 import Link from "next/link"
 import { extractVideoId } from "@/lib/youtube"
 import { normalizeWeights } from "@/lib/weights"
@@ -36,6 +36,27 @@ function parseStoredHistory(raw: string | null): HistoryTurn[] {
   }
 }
 
+function parseImportedPersona(raw: unknown): Persona | null {
+  if (!raw || typeof raw !== "object") return null
+  const data = raw as Record<string, unknown>
+  if (typeof data.name !== "string" || !data.name.trim()) return null
+  if (typeof data.tone !== "string" || !data.tone.trim()) return null
+  if (!Array.isArray(data.interests) || !data.interests.every((item) => typeof item === "string")) return null
+  const age = data.age
+  if (age !== undefined && age !== null && typeof age !== "string" && typeof age !== "number") return null
+
+  const persona: Persona = {
+    name: data.name.trim(),
+    age: age ?? "",
+    tone: data.tone.trim(),
+    interests: data.interests as string[],
+  }
+  if (typeof data.sampleComment === "string" && data.sampleComment.trim()) {
+    persona.sampleComment = data.sampleComment.trim()
+  }
+  return persona
+}
+
 export default function YouTubeAgentChat() {
   const [isManualMode, setIsManualMode] = useState(false)
   const [youtubeURL, setYoutubeURL] = useState("")
@@ -46,6 +67,7 @@ export default function YouTubeAgentChat() {
   const [generating, setGenerating] = useState(false)
   /** After true, rehydration from sessionStorage is done — persist only then so we don't write [] over saved chat */
   const [sessionReady, setSessionReady] = useState(false)
+  const personaFileInputRef = useRef<HTMLInputElement>(null)
 
   // Restore chat + persona from sessionStorage (survives navigation to /settings)
   useEffect(() => {
@@ -302,6 +324,45 @@ export default function YouTubeAgentChat() {
     URL.revokeObjectURL(url)
   }
 
+  const handlePersonaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const text = typeof reader.result === "string" ? reader.result : ""
+        const parsed = JSON.parse(text) as unknown
+        const importedPersona = parseImportedPersona(parsed)
+        if (!importedPersona) {
+          alert("Invalid persona JSON format.")
+          return
+        }
+
+        if (history.length > 0 && !window.confirm("Importing a persona will clear current chat history. Continue?")) {
+          return
+        }
+
+        setPersona(importedPersona)
+        setHistory([])
+        try {
+          sessionStorage.removeItem(SESSION_CHAT_HISTORY_KEY)
+        } catch {
+          /* ignore */
+        }
+      } catch {
+        alert("Could not read persona file. Make sure it is valid JSON.")
+      }
+    }
+    reader.onerror = () => alert("Failed to read file.")
+    reader.readAsText(file, "UTF-8")
+  }
+
+  const triggerPersonaImport = () => {
+    personaFileInputRef.current?.click()
+  }
+
   return (
     <div className="flex h-screen bg-background">
       {/* Header */}
@@ -358,6 +419,14 @@ export default function YouTubeAgentChat() {
           }}
         >
             <div className="p-6">
+            <input
+              ref={personaFileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              aria-hidden
+              onChange={handlePersonaFileChange}
+            />
             <Card className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Generate AI Agent</h2>
@@ -499,6 +568,21 @@ export default function YouTubeAgentChat() {
                       className="bg-background"
                     />
                   </div>
+                  <div className="p-3 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20">
+                    <Label className="text-xs font-medium text-muted-foreground mb-2 block">
+                      Have a persona you downloaded previously? Import the JSON file to chat without generating again.
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={triggerPersonaImport}
+                      className="h-8 text-xs"
+                    >
+                      <Upload className="w-3.5 h-3.5 mr-1.5" />
+                      Import
+                    </Button>
+                  </div>
                 </>
               )}
 
@@ -548,16 +632,6 @@ export default function YouTubeAgentChat() {
               <div className="mt-6 p-4 bg-card rounded-lg border">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-semibold text-sm text-muted-foreground">Generated Agent</h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportPersona}
-                    className="h-7 px-2 text-xs"
-                    title="Export persona as JSON"
-                  >
-                    <Download className="w-3 h-3 mr-1" />
-                    Export
-                  </Button>
                 </div>
                 <div className="space-y-2">
                   <p className="font-medium">{persona.name}</p>
@@ -570,6 +644,22 @@ export default function YouTubeAgentChat() {
                   <p className="text-sm text-muted-foreground">
                     <strong>Interests:</strong> {persona.interests.join(", ")}
                   </p>
+                </div>
+                <div className="mt-4 flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportPersona}
+                    className="h-8 px-2 text-xs"
+                    title="Export persona as JSON"
+                  >
+                    <Download className="w-3 h-3 mr-1" />
+                    Export
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Download persona as JSON
+                  </span>
                 </div>
               </div>
             )}
@@ -596,15 +686,17 @@ export default function YouTubeAgentChat() {
         <div className="flex-1 flex flex-col">
           {/* Chat Header */}
           <div className="p-6 border-b border-border">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
-                <Bot className="w-5 h-5 text-muted-foreground" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Chat with Agent</h3>
-                <p className="text-sm text-muted-foreground">
-                  {persona ? `Chatting with ${persona.name}` : "Generate an agent to start chatting"}
-                </p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
+                  <Bot className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Chat with Agent</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {persona ? `Chatting with ${persona.name}` : "Generate an agent to start chatting"}
+                  </p>
+                </div>
               </div>
             </div>
           </div>

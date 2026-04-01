@@ -324,6 +324,38 @@ export default function YouTubeAgentChat() {
     URL.revokeObjectURL(url)
   }
 
+  const handleDownloadTranscript = () => {
+    if (!persona) return
+
+    const header = [
+      "YouTube Agent Chat Transcript",
+      `Agent: ${persona.name}`,
+      `Exported: ${new Date().toISOString()}`,
+      "",
+    ]
+
+    const turns =
+      history.length > 0
+        ? history.flatMap(([user, bot], i) => [
+            `Turn ${i + 1}`,
+            `You: ${user}`,
+            `${persona.name}: ${bot ?? ""}`,
+            "",
+          ])
+        : ["No chat messages yet.", ""]
+
+    const transcriptText = [...header, ...turns].join("\n")
+    const blob = new Blob([transcriptText], { type: "text/plain;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `chat-transcript-${persona.name.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}.txt`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
   const handlePersonaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ""
@@ -698,6 +730,24 @@ export default function YouTubeAgentChat() {
                   </p>
                 </div>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadTranscript}
+                disabled={!persona || history.length === 0}
+                className="h-8 px-3 text-xs shrink-0"
+                title={
+                  !persona
+                    ? "Generate an agent to enable transcript download"
+                    : history.length === 0
+                      ? "Send at least one message to download a transcript"
+                      : "Download chat transcript (.txt)"
+                }
+              >
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+                Download transcript
+              </Button>
             </div>
           </div>
 

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { HttpsProxyAgent } from "https-proxy-agent";
+
+const proxy = process.env.https_proxy || process.env.HTTPS_PROXY;
+const httpsAgent = proxy ? new HttpsProxyAgent(proxy) : undefined;
 
 export const runtime = "nodejs"; // Gemini SDK needs Node runtime
 
@@ -8,6 +12,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 async function fetchComments(videoId: string, apiKey: string, maxResults: number = 100, order: string = "relevance"): Promise<string[]> {
   const res = await axios.get("https://www.googleapis.com/youtube/v3/commentThreads", {
+    httpsAgent,
     params: {
       part: "snippet",
       videoId,
@@ -105,6 +110,7 @@ export async function POST(req: Request) {
 
       // Step 1a.5: Fetch video title
       const videoMeta = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
+        httpsAgent,
         params: {
           part: "snippet",
           id: videoId,
@@ -159,6 +165,7 @@ export async function POST(req: Request) {
       const keywordQuery = keywords.join(" ");
 
       const searchResults = await axios.get("https://www.googleapis.com/youtube/v3/search", {
+        httpsAgent,
         params: {
           part: "snippet",
           q: keywordQuery,

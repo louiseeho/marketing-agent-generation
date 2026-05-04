@@ -3,6 +3,15 @@ import axios from "axios";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { HttpsProxyAgent } from "https-proxy-agent";
 
+axios.interceptors.request.use((config) => {
+  console.log("AXIOS REQUEST:", {
+    method: String(config.method ?? "get").toUpperCase(),
+    url: config.url ?? "",
+    params: config.params,
+  });
+  return config;
+});
+
 const proxy = process.env.https_proxy || process.env.HTTPS_PROXY;
 const httpsAgent = proxy ? new HttpsProxyAgent(proxy) : undefined;
 
